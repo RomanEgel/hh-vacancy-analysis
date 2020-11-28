@@ -71,7 +71,7 @@ public class VacancyServiceImpl implements VacancyService {
     @Override
     public List<SkillWordCount> generateSkillStatReport() {
         List<SkillWordCount> words = mongoOperations.findAll(SkillWordCount.class);
-
+        calculateSkillStat();
         List<SkillWordCount> top = words.stream()
                 .sorted(Comparator.comparingLong(SkillWordCount::getCount).reversed())
                 .limit(50)
@@ -103,7 +103,7 @@ public class VacancyServiceImpl implements VacancyService {
     @Override
     public List<ScheduleWordCount> generateScheduleReport() {
         List<ScheduleWordCount> words = mongoOperations.findAll(ScheduleWordCount.class);
-
+        calculateScheduleStat();
         List<ScheduleWordCount> top = words.stream()
                 .sorted(Comparator.comparingLong(ScheduleWordCount::getCount).reversed())
                 .limit(50)

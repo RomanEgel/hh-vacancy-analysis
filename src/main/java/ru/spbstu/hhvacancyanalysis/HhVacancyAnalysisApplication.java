@@ -3,6 +3,8 @@ package ru.spbstu.hhvacancyanalysis;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,7 +31,7 @@ public class HhVacancyAnalysisApplication {
             this.vacancyService = vacancyService;
         }
 
-        @PostMapping("upload-vacancies")
+        @GetMapping("upload-vacancies")
         public void uploadVacancies(@RequestParam String keyWord) {
             vacancyService.uploadVacancies(keyWord);
         }
@@ -52,6 +54,24 @@ public class HhVacancyAnalysisApplication {
         @PostMapping("generate-schedule-report")
         public List<ScheduleWordCount> generateScheduleReport() {
             return vacancyService.generateScheduleReport();
+        }
+    }
+
+    @Controller
+    static class Visualisator {
+        @GetMapping("/")
+        public String getMainPage() {
+            return "main_page";
+        }
+
+        @GetMapping("/skill_stat")
+        public String getSkillStatReport() {
+            return "skill_stat_report";
+        }
+
+        @GetMapping("/schedule_stat")
+        public String getScheduleStatReport() {
+            return "schedule_stat_report";
         }
     }
 }

@@ -1,0 +1,32 @@
+<html>
+<head>
+    <title>HhVacancyAnalysisApplication</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+
+</head>
+
+<body>
+<div class="page-header" style="margin-left: 1%">
+    <h1>HhVacancyAnalysisApplication</h1>
+</div>
+
+<div style="margin-left: 1%">
+    <div class="page-header">
+        <h4>Upload vacancies by keyword</h4>
+    </div>
+    <form method="get" action="/upload-vacancies" autocomplete="on">
+        <div class="form-group col-lg-12">
+            <input name="keyWord" type="text" class="form-control" id="keyWord" placeholder="Type keyword" style="width: 25%;">
+        </div>
+        <button type="submit" id="submit" class="btn btn-primary">Upload</button>
+    </form>
+    <div class="page-header">
+        <h4>Tasks</h4>
+    </div>
+    <li><a href="/skill_stat">Skill statistic </a></li>
+    <li><a href="/schedule_stat">Schedule statistic</a></li>
+</div>
+</body>
+</html>
