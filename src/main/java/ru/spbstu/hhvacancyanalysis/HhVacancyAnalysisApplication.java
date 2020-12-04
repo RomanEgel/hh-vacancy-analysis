@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import ru.spbstu.hhvacancyanalysis.dto.ExperienceWordCount;
 import ru.spbstu.hhvacancyanalysis.dto.ScheduleWordCount;
 import ru.spbstu.hhvacancyanalysis.dto.SkillWordCount;
 import ru.spbstu.hhvacancyanalysis.service.VacancyService;
@@ -55,6 +56,16 @@ public class HhVacancyAnalysisApplication {
         public List<ScheduleWordCount> generateScheduleReport() {
             return vacancyService.generateScheduleReport();
         }
+
+        @PostMapping("experience-stat")
+        public void calculateExperienceStat() {
+            vacancyService.calculateExperienceStat();
+        }
+
+        @PostMapping("generate-experience-report")
+        public List<ExperienceWordCount> generateExperienceReport() {
+            return vacancyService.generateExperienceReport();
+        }
     }
 
     @Controller
@@ -72,6 +83,11 @@ public class HhVacancyAnalysisApplication {
         @GetMapping("/schedule_stat")
         public String getScheduleStatReport() {
             return "schedule_stat_report";
+        }
+
+        @GetMapping("/experience_stat")
+        public String getExperienceStatReport() {
+            return "experience_stat_report";
         }
     }
 }
