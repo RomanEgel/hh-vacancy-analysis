@@ -1,5 +1,6 @@
 package ru.spbstu.hhvacancyanalysis.service;
 
+import ru.spbstu.hhvacancyanalysis.dto.ExperienceWordCount;
 import ru.spbstu.hhvacancyanalysis.dto.ScheduleWordCount;
 import ru.spbstu.hhvacancyanalysis.dto.SkillWordCount;
 
@@ -15,4 +16,8 @@ public interface VacancyService {
     void calculateScheduleStat();
 
     List<ScheduleWordCount> generateScheduleReport();
+
+    void calculateExperienceStat();
+
+    List<ExperienceWordCount> generateExperienceReport();
 }

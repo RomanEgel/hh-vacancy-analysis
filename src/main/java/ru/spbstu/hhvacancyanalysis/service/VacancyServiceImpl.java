@@ -1,12 +1,14 @@
 package ru.spbstu.hhvacancyanalysis.service;
 
+import org.apache.spark.SparkContext;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.SparkSession;
+import ru.spbstu.hhvacancyanalysis.dto.*;
+import scala.Tuple2;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import ru.spbstu.hhvacancyanalysis.dto.ScheduleWordCount;
-import ru.spbstu.hhvacancyanalysis.dto.SkillWordCount;
-import ru.spbstu.hhvacancyanalysis.dto.Vacancies;
-import ru.spbstu.hhvacancyanalysis.dto.Vacancy;
 import ru.spbstu.hhvacancyanalysis.repository.VacancyRepo;
 
 import java.time.LocalDate;
@@ -28,6 +30,15 @@ public class VacancyServiceImpl implements VacancyService {
 
     private final VacancyRepo vacancyRepo;
     private final MongoOperations mongoOperations;
+
+    private final SparkSession spark = SparkSession
+            .builder()
+            .appName("hhvacancyanalysis")
+            .config("spark.master", "local")
+            .getOrCreate();
+
+    private final SparkContext sc = spark.sparkContext();
+    private final JavaSparkContext jsc = JavaSparkContext.fromSparkContext(sc);
 
     public VacancyServiceImpl(VacancyRepo vacancyRepo, MongoOperations mongoOperations) {
         this.vacancyRepo = vacancyRepo;
@@ -62,28 +73,34 @@ public class VacancyServiceImpl implements VacancyService {
             return;
         }
 
-        List<SkillWordCount> wordCounts = vacancies.parallelStream()
-            .filter(v -> v.getKey_skills() != null)
-            .flatMap(v -> v.getKey_skills().stream())
-            .map(Vacancy.KeySkill::getName)
-            .flatMap(s -> Arrays.stream(s.split("[ ]+")))
-            .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new SkillWordCount(e.getKey(), e.getValue()))
-            .collect(Collectors.toList());
+        JavaRDD<Vacancy> vacancyJavaRDD = jsc.parallelize(vacancies);
+
+        Long skillsCount = vacancyJavaRDD
+                .filter(v -> v.getKey_skills() != null)
+                .count();
+        List<SkillWordCount> wordCounts = vacancyJavaRDD
+                .filter(v -> v.getKey_skills() != null)
+                .flatMap(v -> v.getKey_skills().iterator())
+                .map(Vacancy.KeySkill::getName)
+                //.flatMap(s -> Arrays.stream(s.split("[ ]+")).iterator())
+                .mapToPair(s -> new Tuple2<>(s, 1L))
+                .reduceByKey(Long::sum)
+                .map(e -> new SkillWordCount(e._1(), ((double) e._2() / (double) skillsCount) * 100))
+                .collect();
 
         mongoOperations.insertAll(wordCounts);
     }
 
     @Override
     public List<SkillWordCount> generateSkillStatReport() {
-        List<SkillWordCount> words = mongoOperations.findAll(SkillWordCount.class);
         calculateSkillStat();
+        List<SkillWordCount> words = mongoOperations.findAll(SkillWordCount.class);
+        List<SkillWordCount> top = words.stream()
+                .sorted(Comparator.comparingDouble(SkillWordCount::getCount).reversed())
+                .limit(50)
+                .collect(Collectors.toList());
 
-        return words.stream()
-            .sorted(Comparator.comparingLong(SkillWordCount::getCount).reversed())
-            .limit(50)
-            .collect(Collectors.toList());
+        return top;
     }
 
     @Override
@@ -95,28 +112,61 @@ public class VacancyServiceImpl implements VacancyService {
             return;
         }
 
-        List<ScheduleWordCount> wordCounts = vacancies.parallelStream()
-            .filter(v -> v.getSchedule() != null)
-            .map(v -> v.getSchedule().getName())
-            .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
-            .entrySet().stream()
-            .map(e -> new ScheduleWordCount(e.getKey(), e.getValue()))
-            .collect(Collectors.toList());
+        JavaRDD<Vacancy> vacancyJavaRDD = jsc.parallelize(vacancies);
+        List<ScheduleWordCount> wordCounts = vacancyJavaRDD
+                .filter(v -> v.getSchedule() != null)
+                .map(v -> v.getSchedule().getName())
+                .mapToPair(s -> new Tuple2<>(s, 1))
+                .reduceByKey(Integer::sum)
+                .map(e -> new ScheduleWordCount(e._1(), e._2().longValue()))
+                .collect();
 
         mongoOperations.insertAll(wordCounts);
     }
 
     @Override
     public List<ScheduleWordCount> generateScheduleReport() {
-        List<ScheduleWordCount> words = mongoOperations.findAll(ScheduleWordCount.class);
         calculateScheduleStat();
+        List<ScheduleWordCount> words = mongoOperations.findAll(ScheduleWordCount.class);
+        List<ScheduleWordCount> top = words.stream()
+                .sorted(Comparator.comparingLong(ScheduleWordCount::getCount).reversed())
+                .limit(50)
+                .collect(Collectors.toList());
 
-        return words.stream()
-            .sorted(Comparator.comparingLong(ScheduleWordCount::getCount).reversed())
-            .limit(50)
-            .collect(Collectors.toList());
+        return top;
     }
 
+    @Override
+    public void calculateExperienceStat() {
+        mongoOperations.dropCollection(ExperienceWordCount.class);
+        List<Vacancy> vacancies = vacancyRepo.findAll();
+
+        if (vacancies.isEmpty()) {
+            return;
+        }
+
+        JavaRDD<Vacancy> vacancyJavaRDD = jsc.parallelize(vacancies);
+        List<ExperienceWordCount> wordCounts = vacancyJavaRDD
+                .filter(v -> v.getExperience() != null)
+                .map(v -> v.getExperience().getName())
+                .mapToPair(s -> new Tuple2<>(s, 1))
+                .reduceByKey(Integer::sum)
+                .map(e -> new ExperienceWordCount(e._1(), e._2().longValue()))
+                .collect();
+
+        mongoOperations.insertAll(wordCounts);
+    }
+
+    @Override
+    public List<ExperienceWordCount> generateExperienceReport() {
+        calculateExperienceStat();
+        List<ExperienceWordCount> words = mongoOperations.findAll(ExperienceWordCount.class);
+        List<ExperienceWordCount> top = words.stream()
+                .sorted(Comparator.comparingLong(ExperienceWordCount::getCount).reversed())
+                .limit(50)
+                .collect(Collectors.toList());
+        return top;
+    }
 
     private void uploadVacanciesForADay(String keyWord, LocalDate start) {
         System.out.println(">> STARTED VACANCY UPLOAD FOR A DAY " + start.toString());

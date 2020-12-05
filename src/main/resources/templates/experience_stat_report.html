@@ -20,7 +20,7 @@
 
         function drawChart () {
             $.ajax({
-                url: "http://localhost:8080/generate-skill-stat-report",
+                url: "http://localhost:8080/generate-experience-report",
                 dataType: "json",
                 type:"POST",
                 success: function (jsonData) {
@@ -33,28 +33,22 @@
                     }
 
                     var options = {
-                        title: 'Skill stat report',
+                        title: 'Experience stat report',
                         chartArea: {
-                             width: '90%',
-                             height: '40%'
+                             width: '90%'
                         },
                         legend: {
                             position: 'top'
                         },
                         width: '100%',
-                        height: 1000,
-                        hAxis: {
+                        height: 800
 
-                              slantedText: true,
-                              slantedTextAngle: 80
-                            },
                     };
-                    var chart = new google.visualization.ColumnChart(document.getElementById('barchart'));
+                    var chart = new google.visualization.PieChart(document.getElementById('barchart'));
                     chart.draw(data, options);
                 }
             });
         }
-
 
 </script>
 </body>

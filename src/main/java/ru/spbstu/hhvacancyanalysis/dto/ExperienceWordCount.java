@@ -4,7 +4,7 @@ import lombok.Data;
 import scala.Serializable;
 
 @Data
-public class SkillWordCount implements Serializable {
+public class ExperienceWordCount implements Serializable {
     private final String keyword;
-    private final Double count;
+    private final Long count;
 }
