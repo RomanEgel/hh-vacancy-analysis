@@ -13,8 +13,9 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,7 +24,7 @@ public class VacancyServiceImpl implements VacancyService {
     private static final String vacancyQuery = "https://api.hh.ru/vacancies/%s";
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final ExecutorService threadPool = Executors.newCachedThreadPool();
+    private final ScheduledExecutorService threadPool = Executors.newScheduledThreadPool(4);
 
     private final VacancyRepo vacancyRepo;
     private final MongoOperations mongoOperations;
@@ -36,14 +37,20 @@ public class VacancyServiceImpl implements VacancyService {
 
     @Override
     public void uploadVacancies(String keyWord) {
-        LocalDate end = LocalDate.now();
-        LocalDate start = end.minusMonths(1);
         vacancyRepo.deleteAll();
 
-        while (!start.isEqual(end)) {
-            uploadVacanciesForADay(keyWord, start);
-            start = start.plusDays(1);
-        }
+        threadPool.execute(() -> {
+            System.out.println(">>> START UPLOAD OF VACANCIES FROM HH");
+            LocalDate end = LocalDate.now();
+            LocalDate start = end.minusMonths(1);
+            int count = 0;
+            while (!start.isEqual(end)) {
+                LocalDate effectivelyFinalStart = start;
+                threadPool.schedule(() -> uploadVacanciesForADay(keyWord, effectivelyFinalStart), count, TimeUnit.MINUTES);
+                start = start.plusDays(1);
+                count++;
+            }
+        });
     }
 
     @Override
@@ -56,14 +63,14 @@ public class VacancyServiceImpl implements VacancyService {
         }
 
         List<SkillWordCount> wordCounts = vacancies.parallelStream()
-                .filter(v -> v.getKey_skills() != null)
-                .flatMap(v -> v.getKey_skills().stream())
-                .map(Vacancy.KeySkill::getName)
-                .flatMap(s -> Arrays.stream(s.split("[ ]+")))
-                .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
-                .entrySet().stream()
-                .map(e -> new SkillWordCount(e.getKey(), e.getValue()))
-                .collect(Collectors.toList());
+            .filter(v -> v.getKey_skills() != null)
+            .flatMap(v -> v.getKey_skills().stream())
+            .map(Vacancy.KeySkill::getName)
+            .flatMap(s -> Arrays.stream(s.split("[ ]+")))
+            .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
+            .entrySet().stream()
+            .map(e -> new SkillWordCount(e.getKey(), e.getValue()))
+            .collect(Collectors.toList());
 
         mongoOperations.insertAll(wordCounts);
     }
@@ -72,12 +79,11 @@ public class VacancyServiceImpl implements VacancyService {
     public List<SkillWordCount> generateSkillStatReport() {
         List<SkillWordCount> words = mongoOperations.findAll(SkillWordCount.class);
         calculateSkillStat();
-        List<SkillWordCount> top = words.stream()
-                .sorted(Comparator.comparingLong(SkillWordCount::getCount).reversed())
-                .limit(50)
-                .collect(Collectors.toList());
 
-        return top;
+        return words.stream()
+            .sorted(Comparator.comparingLong(SkillWordCount::getCount).reversed())
+            .limit(50)
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -90,12 +96,12 @@ public class VacancyServiceImpl implements VacancyService {
         }
 
         List<ScheduleWordCount> wordCounts = vacancies.parallelStream()
-                .filter(v -> v.getSchedule() != null)
-                .map(v -> v.getSchedule().getName())
-                .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
-                .entrySet().stream()
-                .map(e -> new ScheduleWordCount(e.getKey(), e.getValue()))
-                .collect(Collectors.toList());
+            .filter(v -> v.getSchedule() != null)
+            .map(v -> v.getSchedule().getName())
+            .collect(Collectors.groupingBy(s -> s, Collectors.counting()))
+            .entrySet().stream()
+            .map(e -> new ScheduleWordCount(e.getKey(), e.getValue()))
+            .collect(Collectors.toList());
 
         mongoOperations.insertAll(wordCounts);
     }
@@ -104,21 +110,23 @@ public class VacancyServiceImpl implements VacancyService {
     public List<ScheduleWordCount> generateScheduleReport() {
         List<ScheduleWordCount> words = mongoOperations.findAll(ScheduleWordCount.class);
         calculateScheduleStat();
-        List<ScheduleWordCount> top = words.stream()
-                .sorted(Comparator.comparingLong(ScheduleWordCount::getCount).reversed())
-                .limit(50)
-                .collect(Collectors.toList());
 
-        return top;
+        return words.stream()
+            .sorted(Comparator.comparingLong(ScheduleWordCount::getCount).reversed())
+            .limit(50)
+            .collect(Collectors.toList());
     }
 
 
     private void uploadVacanciesForADay(String keyWord, LocalDate start) {
+        System.out.println(">> STARTED VACANCY UPLOAD FOR A DAY " + start.toString());
         int page = 0;
         Vacancies body = getVacancies(keyWord, start, page);
+
         if (body == null || body.getItems().isEmpty()) return;
 
         int pages = body.getPages();
+        System.out.println("TOTAL PAGES FOR A DAY " + start.toString() + " is " + pages);
         while (page < pages) {
             body = getVacancies(keyWord, start, ++page);
             if (body == null || body.getItems().isEmpty()) return;
@@ -128,24 +136,24 @@ public class VacancyServiceImpl implements VacancyService {
 
     private Vacancies getVacancies(String keyWord, LocalDate start, int page) {
         Vacancies body = restTemplate.getForEntity(
-                String.format(listVacanciesQuery, keyWord, start, start.plusDays(1), page), Vacancies.class)
-                .getBody();
+            String.format(listVacanciesQuery, keyWord, start, start.plusDays(1), page), Vacancies.class)
+            .getBody();
         if (body == null || body.getItems().isEmpty())
             return null;
 
-        uploadDetailedVacanciesAsync(body);
+        System.out.println("> STARTED VACANCY UPLOAD FOR A PAGE " + page + " AND START DATE " + start.toString());
+        uploadDetailedVacancies(body, page);
         return body;
     }
 
-    private void uploadDetailedVacanciesAsync(Vacancies body) {
-        threadPool.submit(() -> {
-            for (Vacancy vacancy : body.getItems()) {
-                Vacancy result = restTemplate.getForEntity(String.format(vacancyQuery, vacancy.getId()), Vacancy.class)
-                        .getBody();
-                if (result != null) {
-                    vacancyRepo.save(result);
-                }
+    private void uploadDetailedVacancies(Vacancies body, int page) {
+        for (Vacancy vacancy : body.getItems()) {
+            System.out.println("UPLOAD VACANCY " + vacancy.getId() + "on page " + page);
+            Vacancy result = restTemplate.getForEntity(String.format(vacancyQuery, vacancy.getId()), Vacancy.class)
+                .getBody();
+            if (result != null) {
+                vacancyRepo.save(result);
             }
-        });
+        }
     }
 }

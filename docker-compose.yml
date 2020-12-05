@@ -1,0 +1,24 @@
+version: "3.8"
+
+networks:
+  hh-vacancy-app:
+    name: hh-vacancy-app
+
+services:
+  hh-vacancy-analysis-app:
+    container_name: vacancy-analyzer
+    build: .
+    image: hh-vacancy-analysis-app
+    depends_on:
+      - mongo
+    ports:
+      - "8080:8080"
+    networks:
+      - hh-vacancy-app
+  mongo:
+    container_name: mongo
+    image: mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - hh-vacancy-app

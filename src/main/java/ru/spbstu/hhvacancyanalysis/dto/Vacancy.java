@@ -1,6 +1,8 @@
 package ru.spbstu.hhvacancyanalysis.dto;
 
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -29,7 +31,8 @@ public class Vacancy {
         private String name;
     }
 
-    @Data
+    @Getter
+    @Setter
     public static class IdNameUrl extends IdName {
         private String url;
     }
