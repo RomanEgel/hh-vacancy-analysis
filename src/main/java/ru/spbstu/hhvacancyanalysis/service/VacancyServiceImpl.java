@@ -4,15 +4,18 @@ import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
-import ru.spbstu.hhvacancyanalysis.dto.*;
-import scala.Tuple2;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import ru.spbstu.hhvacancyanalysis.dto.ExperienceWordCount;
+import ru.spbstu.hhvacancyanalysis.dto.ScheduleWordCount;
+import ru.spbstu.hhvacancyanalysis.dto.SkillWordCount;
+import ru.spbstu.hhvacancyanalysis.dto.Vacancies;
+import ru.spbstu.hhvacancyanalysis.dto.Vacancy;
 import ru.spbstu.hhvacancyanalysis.repository.VacancyRepo;
+import scala.Tuple2;
 
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -34,7 +37,7 @@ public class VacancyServiceImpl implements VacancyService {
     private final SparkSession spark = SparkSession
             .builder()
             .appName("hhvacancyanalysis")
-            .config("spark.master", "local")
+            .master("spark://spark-master:7077")
             .getOrCreate();
 
     private final SparkContext sc = spark.sparkContext();

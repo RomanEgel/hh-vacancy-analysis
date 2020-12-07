@@ -11,8 +11,10 @@ services:
     image: hh-vacancy-analysis-app
     depends_on:
       - mongo
+      - spark-master
     ports:
       - "8080:8080"
+      - "5000-5010:5000-5010"
     networks:
       - hh-vacancy-app
   mongo:
@@ -22,3 +24,26 @@ services:
       - "27017:27017"
     networks:
       - hh-vacancy-app
+  spark-master:
+    image: bde2020/spark-master:3.0.1-hadoop3.2
+    container_name: spark-master
+    networks:
+      - hh-vacancy-app
+    ports:
+      - "8090:8080"
+      - "7077:7077"
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - "constraint:node==spark-master"
+  spark-worker-1:
+    image: bde2020/spark-worker:3.0.1-hadoop3.2
+    container_name: spark-worker-1
+    networks:
+      - hh-vacancy-app
+    depends_on:
+      - spark-master
+    ports:
+      - "8081:8081"
+    environment:
+      - "SPARK_MASTER=spark://spark-master:7077"
+      - "constraint:node==spark-worker-1"
