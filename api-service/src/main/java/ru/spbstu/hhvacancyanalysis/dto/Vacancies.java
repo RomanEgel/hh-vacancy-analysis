@@ -1,6 +1,5 @@
 package ru.spbstu.hhvacancyanalysis.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 import java.util.List;
