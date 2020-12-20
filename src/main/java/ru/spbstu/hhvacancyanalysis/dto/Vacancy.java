@@ -1,12 +1,11 @@
 package ru.spbstu.hhvacancyanalysis.dto;
 
 import lombok.Data;
-import scala.Serializable;
 
 import java.util.List;
 
 @Data
-public class Vacancy implements Serializable {
+public class Vacancy {
     private Long id;
     private String name;
     private Salary salary;
@@ -20,23 +19,23 @@ public class Vacancy implements Serializable {
     private String created_at;
 
     @Data
-    public static class KeySkill implements Serializable{
+    public static class KeySkill {
         private String name;
     }
 
     @Data
-    public static class IdName implements Serializable{
+    public static class IdName {
         private String id;
         private String name;
     }
 
     @Data
-    public static class IdNameUrl extends IdName implements Serializable {
+    public static class IdNameUrl extends IdName  {
         private String url;
     }
 
     @Data
-    public static class Salary implements Serializable{
+    public static class Salary {
         private Long from;
         private Long to;
         private String currency;

@@ -1,10 +1,9 @@
 package ru.spbstu.hhvacancyanalysis.dto;
 
 import lombok.Data;
-import scala.Serializable;
 
 @Data
-public class ScheduleWordCount implements Serializable {
+public class ScheduleWordCount {
     private final String keyword;
     private final Long count;
 }

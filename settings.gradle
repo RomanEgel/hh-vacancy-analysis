@@ -1,1 +1,3 @@
 rootProject.name = 'hh-vacancy-analysis'
+include 'StatCalculator'
+

@@ -1,12 +1,7 @@
 package ru.spbstu.hhvacancyanalysis.service;
 
-import com.mongodb.spark.MongoSpark;
-import com.mongodb.spark.rdd.api.java.JavaMongoRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.SparkSession;
-import org.bson.Document;
-import ru.spbstu.hhvacancyanalysis.dto.*;
-import scala.Tuple2;
+import org.apache.commons.io.IOUtils;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -16,8 +11,8 @@ import ru.spbstu.hhvacancyanalysis.dto.SkillWordCount;
 import ru.spbstu.hhvacancyanalysis.dto.Vacancies;
 import ru.spbstu.hhvacancyanalysis.dto.Vacancy;
 import ru.spbstu.hhvacancyanalysis.repository.VacancyRepo;
-import scala.Tuple2;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -27,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
+@Profile("!unittesting")
 public class VacancyServiceImpl implements VacancyService {
     private static final String listVacanciesQuery = "https://api.hh.ru/vacancies?text=%s&date_from=%s&date_to=%s&page=%s&per_page=100";
     private static final String vacancyQuery = "https://api.hh.ru/vacancies/%s";
@@ -36,15 +32,6 @@ public class VacancyServiceImpl implements VacancyService {
 
     private final VacancyRepo vacancyRepo;
     private final MongoOperations mongoOperations;
-
-    private final SparkSession spark = SparkSession
-            .builder()
-            .appName("hhvacancyanalysis")
-            .master("spark://spark-master:7077")
-            .config("spark.mongodb.input.uri", "mongodb://127.0.0.1/test.vacancy")
-            .getOrCreate();
-
-    private final JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     public VacancyServiceImpl(VacancyRepo vacancyRepo, MongoOperations mongoOperations) {
         this.vacancyRepo = vacancyRepo;
@@ -73,26 +60,23 @@ public class VacancyServiceImpl implements VacancyService {
     @Override
     public void calculateSkillStat() {
         mongoOperations.dropCollection(SkillWordCount.class);
-        JavaMongoRDD<Document> documentJavaMongoRDD = MongoSpark.load(jsc);
 
-        if (documentJavaMongoRDD.isEmpty()) {
-            return;
+        startCalc("skillWordCount");
+    }
+
+    private void startCalc(String statType) {
+        Runtime rt = Runtime.getRuntime();
+        try {
+            Process pr = rt.exec("java -jar /statCount.jar " + statType);
+            pr.waitFor();
+            if (pr.exitValue() != 0) {
+                String error = IOUtils.toString(pr.getErrorStream(), StandardCharsets.UTF_8.displayName());
+                System.out.println(error);
+                throw new RuntimeException(error);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("ERROR", e);
         }
-
-        Long skillsCount = documentJavaMongoRDD
-                .filter(v -> v.get("key_skills") != null)
-                .count();
-        System.out.println(skillsCount);
-        List<SkillWordCount> wordCounts = documentJavaMongoRDD
-                .filter(v -> v.get("key_skills") != null)
-                .flatMap(v -> v.getList("key_skills", Document.class).iterator())
-                .map(v -> v.get("name").toString())
-                //.flatMap(s -> Arrays.stream(s.split("[ ]+")).iterator())
-                .mapToPair(s -> new Tuple2<>(s, 1L))
-                .reduceByKey(Long::sum)
-                .map(e -> new SkillWordCount(e._1().toString(), ((double) e._2() / (double) skillsCount) * 100))
-                .collect();
-        mongoOperations.insertAll(wordCounts);
     }
 
     @Override
@@ -110,20 +94,7 @@ public class VacancyServiceImpl implements VacancyService {
     @Override
     public void calculateScheduleStat() {
         mongoOperations.dropCollection(ScheduleWordCount.class);
-        JavaMongoRDD<Document> documentJavaMongoRDD = MongoSpark.load(jsc);
-
-        if (documentJavaMongoRDD.isEmpty()) {
-            return;
-        }
-
-        List<ScheduleWordCount> wordCounts = documentJavaMongoRDD
-                .filter(v -> v.get("schedule") != null)
-                .map(v ->  v.get("schedule", Document.class).get("name").toString())
-                .mapToPair(s -> new Tuple2<>(s, 1L))
-                .reduceByKey(Long::sum)
-                .map(e -> new ScheduleWordCount(e._1, e._2()))
-                .collect();
-        mongoOperations.insertAll(wordCounts);
+        startCalc("scheduleWordCount");
     }
 
     @Override
@@ -141,20 +112,7 @@ public class VacancyServiceImpl implements VacancyService {
     @Override
     public void calculateExperienceStat() {
         mongoOperations.dropCollection(ExperienceWordCount.class);
-        JavaMongoRDD<Document> documentJavaMongoRDD = MongoSpark.load(jsc);
-
-        if (documentJavaMongoRDD.isEmpty()) {
-            return;
-        }
-
-        List<ExperienceWordCount> wordCounts = documentJavaMongoRDD
-                .filter(v -> v.get("experience") != null)
-                .map(v ->  v.get("experience", Document.class).get("name").toString())
-                .mapToPair(s -> new Tuple2<>(s, 1L))
-                .reduceByKey(Long::sum)
-                .map(e -> new ExperienceWordCount(e._1, e._2()))
-                .collect();
-        mongoOperations.insertAll(wordCounts);
+       startCalc("experienceWordCount");
     }
 
     @Override
